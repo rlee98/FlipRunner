@@ -3,6 +3,7 @@ package com.therl.fliprunner;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.os.Bundle;
@@ -49,6 +50,12 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
 
         private final Object mRunLock = new Object();
 
+        /*
+         * Member (state) fields
+         */
+        /** The drawable to use as the background of the animation canvas */
+        private Bitmap mBackgroundImage;
+
         /**
          * Current height of the surface/canvas.
          *
@@ -61,6 +68,12 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
          * @see #setSurfaceSize
          */
         private int mCanvasWidth = 1;
+
+        /** Pixel height of player image. */
+        private int mPlayerHeight;
+        /** Pixel width of player image. */
+        private int mPlayerWidth;
+
 
         /** The state of the game. One of READY, RUNNING, PAUSE, LOSE, or WIN */
         private int mMode;
@@ -86,16 +99,14 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
             mContext = context;
 
             Resources res = context.getResources();
-            //mBackgroundImage = BitmapFactory.decodeResource(res,
-            //        R.drawable.earthrise);
-            // TODO: 12/27/2016
+            // load background image as a Bitmap instead of a Drawable b/c
+            // we don't need to transform it and it's faster to draw this way
+//            mBackgroundImage = BitmapFactory.decodeResource(res,
+//                    R.drawable.background);
         }
 
         public void doStart() {
             synchronized (mSurfaceHolder) {
-                Paint paint = new Paint();
-                paint.setStyle(Paint.Style.FILL);
-                grid.drawCircle(w/2, h/2 , w/2, paint);
 
                 // pick a convenient initial location for the lander sprite
                 int offset = mCanvasWidth/8;
@@ -235,15 +246,15 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
                 } else {
                     Resources res = mContext.getResources();
                     CharSequence str = "";
-                    if (mMode == STATE_READY)
-                        str = res.getText(R.string.mode_ready);
-                    else if (mMode == STATE_PAUSE)
-                        str = res.getText(R.string.mode_pause);
-                    else if (mMode == STATE_LOSE)
-                        str = res.getText(R.string.mode_lose);
-                    if (message != null) {
-                        str = message + "\n" + str;
-                    }
+//                    if (mMode == STATE_READY)
+//                        str = res.getText(R.string.mode_ready);
+//                    else if (mMode == STATE_PAUSE)
+//                        str = res.getText(R.string.mode_pause);
+//                    else if (mMode == STATE_LOSE)
+//                        str = res.getText(R.string.mode_lose);
+//                    if (message != null) {
+//                        str = message + "\n" + str;
+//                    }
                     Message msg = mHandler.obtainMessage();
                     Bundle b = new Bundle();
                     b.putString("text", str.toString());
@@ -356,12 +367,18 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
             // Draw the background image. Operations on the Canvas accumulate
             // so this is like clearing the screen.
             canvas.drawBitmap(mBackgroundImage, 0, 0, null);
-            int yTop = mCanvasHeight - ((int) mY + mLanderHeight / 2);
-            int xLeft = (int) mX - mLanderWidth / 2;
 
-            mScratchRect.set(4, 4, 4 + fuelWidth, 4 + UI_BAR_HEIGHT);
-            canvas.drawRect(mScratchRect, mLinePaint);
-            // Draw the speed gauge, with a two-tone effect
+            // TODO: 12/29/2016 temp
+            mPlayerHeight = 20;
+            mPlayerWidth = 20;
+            int offset = mCanvasWidth/8;
+            int yMid = mCanvasHeight/2 - ((int) mY + mPlayerHeight / 2);
+            int xLeft = (int) mX + offset - mPlayerWidth / 2;
+
+            Paint paint = new Paint();
+            paint.setStyle(Paint.Style.FILL);
+            int radius = 20;
+            canvas.drawCircle(xLeft, yMid , radius, paint);
         }
         /**
          * Figures the lander state (x, y, fuel, ...) based on the passage of
@@ -458,14 +475,14 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
         // register our interest in hearing about changes to our surface
         SurfaceHolder holder = getHolder();
         holder.addCallback(this);
-        // create thread only; it's started in surfaceCreated()
-        thread = new GameThread(holder, context, new Handler() {
-            @Override
-            public void handleMessage(Message m) {
-                mStatusText.setVisibility(m.getData().getInt("viz"));
-                mStatusText.setText(m.getData().getString("text"));
-            }
-        });
+//        // create thread only; it's started in surfaceCreated()
+//        thread = new GameThread(holder, context, new Handler() {
+//            @Override
+//            public void handleMessage(Message m) {
+//                mStatusText.setVisibility(m.getData().getInt("viz"));
+//                mStatusText.setText(m.getData().getString("text"));
+//            }
+//        });
         setFocusable(true); // make sure we get key events
     }
     /**
