@@ -16,19 +16,15 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        addListenerOnButton();
 
-    }
-    public void addListenerOnButton() {
         Button b1 = (Button) findViewById(R.id.button1);
-        b1.setOnClickListener(this);
-        {
+        b1.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick (View v){
-            Intent startGame = new Intent(this, GameActivity.class);
-            startActivity(startGame);
+                Intent startGame = new Intent(MainActivity.this, GameActivity.class);
+                startActivity(startGame);
             }
-        }
+        });
     }
 
 }
