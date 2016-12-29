@@ -101,8 +101,8 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
             Resources res = context.getResources();
             // load background image as a Bitmap instead of a Drawable b/c
             // we don't need to transform it and it's faster to draw this way
-//            mBackgroundImage = BitmapFactory.decodeResource(res,
-//                    R.drawable.background);
+            mBackgroundImage = BitmapFactory.decodeResource(res,
+                    R.drawable.background);
         }
 
         public void doStart() {
@@ -476,13 +476,13 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
         SurfaceHolder holder = getHolder();
         holder.addCallback(this);
 //        // create thread only; it's started in surfaceCreated()
-//        thread = new GameThread(holder, context, new Handler() {
-//            @Override
-//            public void handleMessage(Message m) {
+        thread = new GameThread(holder, context, new Handler() {
+            @Override
+            public void handleMessage(Message m) {
 //                mStatusText.setVisibility(m.getData().getInt("viz"));
 //                mStatusText.setText(m.getData().getString("text"));
-//            }
-//        });
+            }
+        });
         setFocusable(true); // make sure we get key events
     }
     /**
