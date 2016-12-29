@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -92,6 +93,10 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
 
         public void doStart() {
             synchronized (mSurfaceHolder) {
+                Paint paint = new Paint();
+                paint.setStyle(Paint.Style.FILL);
+                grid.drawCircle(w/2, h/2 , w/2, paint);
+
                 // pick a convenient initial location for the lander sprite
                 int offset = mCanvasWidth/8;
                 mX = offset;
