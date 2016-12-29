@@ -9,13 +9,14 @@ import android.view.View.OnClickListener;
 
 
 
-public class MainActivity extends AppCompatActivity implements OnClickListener {
+public class MainActivity extends AppCompatActivity {
 
     // first comment!
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        addListenerOnButton();
 
     }
     public void addListenerOnButton() {
