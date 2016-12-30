@@ -20,6 +20,17 @@ public class GameActivity extends AppCompatActivity {
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         // get handles to the LunarView from XML, and its LunarThread
         mGameSurface = (GameSurface) findViewById(R.id.game);
+        mGameSurface.setOnTouchListener(new OnSwipeTouchListener(this){
+            @Override
+            public void onSwipeTop() {
+                mGameSurface.onSwipeTop();
+            }
+            @Override
+            public void onSwipeBottom() {
+                mGameSurface.onSwipeBottom();
+            }
+
+        });
         mGameThread = mGameSurface.getThread();
         if (savedInstanceState == null) {
             // we were just launched: set up a new game

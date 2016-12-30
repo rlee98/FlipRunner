@@ -26,6 +26,7 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
          * Physics constants
          */
         public static final int PHYS_DOWN_ACCEL_SEC = 100;
+        public static final int JUMP_SPEED = 100;
         /*
          * State-tracking constants
          */
@@ -33,6 +34,12 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
         public static final int STATE_PAUSE = 2;
         public static final int STATE_READY = 3;
         public static final int STATE_RUNNING = 4;
+        /*
+         * Jumping constants
+         */
+        public static final int JUMPING_DOWN = -1;
+        public static final int JUMPING_NONE = 0;
+        public static final int JUMPING_UP = 1;
         /*
          * UI constants (i.e. the speed & fuel bars)
          */
@@ -87,6 +94,9 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
         private double mX;
         /** Y of lander center. */
         private double mY;
+
+        /** Is the engine burning? */
+        private int mJumping;
 
         /** Used to figure out elapsed time between frames */
         private long mLastTime;
@@ -206,6 +216,17 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
                 mRun = b;
             }
         }
+
+        /**
+         * Sets if the player is jumping. That is, whether upwards, downwards, or not.
+         *
+         * @param jumping one of the STATE_* constants
+         */
+        public void setJumping(int jumping) {
+            synchronized (mSurfaceHolder) {
+                mJumping = jumping;
+            }
+        }
         /**
          * Sets the game mode. That is, whether we are running, paused, in the
          * failure state, in the victory state, etc.
@@ -285,6 +306,63 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
             }
             setState(STATE_RUNNING);
         }
+        /**
+         * Handles a key-down event.
+         *
+         * @param keyCode the key that was pressed
+         * @param msg the original event object
+         * @return true
+         */
+        boolean doKeyDown(int keyCode, KeyEvent msg) {
+            synchronized (mSurfaceHolder) {
+                boolean okStart = false;
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) okStart = true;
+                if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) okStart = true;
+                if (keyCode == KeyEvent.KEYCODE_S) okStart = true;
+                if (okStart && mMode == STATE_READY) {
+                    // ready-to-start -> start
+                    doStart();
+                    return true;
+                } else if (mMode == STATE_PAUSE && okStart) {
+                    // paused -> running
+                    unpause();
+                    return true;
+                }
+                return false;
+            }
+        }
+        /**
+         * Handles a swipe-top.
+         * @return true
+         */
+        public boolean onSwipeTop() {
+            boolean handled = false;
+            synchronized (mSurfaceHolder) {
+                if (mMode == STATE_RUNNING && mJumping == JUMPING_NONE) {
+                    mDY += JUMP_SPEED;
+                    setJumping(JUMPING_UP);
+                    handled = true;
+                }
+            }
+            return handled;
+        }
+
+        /**
+         * Handles a swipe-bottom.
+         * @return true
+         */
+        public boolean onSwipeBottom() {
+            boolean handled = false;
+            synchronized (mSurfaceHolder) {
+                if (mMode == STATE_RUNNING && mJumping == JUMPING_NONE) {
+                    mDY -= JUMP_SPEED;
+                    setJumping(JUMPING_DOWN);
+                    handled = true;
+                }
+            }
+            return handled;
+        }
+//
 //        /**
 //         * Handles a key-down event.
 //         *
@@ -493,13 +571,19 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
     public GameThread getThread() {
         return thread;
     }
-//    /**
-//     * Standard override to get key-press events.
-//     */
-//    @Override
-//    public boolean onKeyDown(int keyCode, KeyEvent msg) {
-//        return thread.doKeyDown(keyCode, msg);
-//    }
+
+    /**
+     * Get swipe top.
+     */
+    public boolean onSwipeTop() {
+        return thread.onSwipeTop();
+    }
+    /**
+     * Get swipe bottom.
+     */
+    public boolean onSwipeBottom() {
+        return thread.onSwipeBottom();
+    }
 //    /**
 //     * Standard override for key-up. We actually care about these, so we can
 //     * turn off the engine or stop rotating.
