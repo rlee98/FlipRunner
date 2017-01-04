@@ -11,10 +11,14 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.TextView;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by Limmy on 12/27/2016.
@@ -25,8 +29,7 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
         /*
          * Physics constants
          */
-        public static final int PHYS_DOWN_ACCEL_SEC = 100;
-        public static final int JUMP_SPEED = 100;
+        public static final int PHYS_DOWN_ACCEL_SEC = 10000;
         /*
          * State-tracking constants
          */
@@ -34,19 +37,6 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
         public static final int STATE_PAUSE = 2;
         public static final int STATE_READY = 3;
         public static final int STATE_RUNNING = 4;
-        /*
-         * Jumping constants
-         */
-        public static final int JUMPING_DOWN = -1;
-        public static final int JUMPING_NONE = 0;
-        public static final int JUMPING_UP = 1;
-        /*
-         * UI constants (i.e. the speed & fuel bars)
-         */
-        private static final String KEY_DX = "mDX";
-        private static final String KEY_DY = "mDY";
-        private static final String KEY_X = "mX";
-        private static final String KEY_Y = "mY";
 
         /** Handle to the surface manager object we interact with */
         private SurfaceHolder mSurfaceHolder;
@@ -76,27 +66,11 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
          */
         private int mCanvasWidth = 1;
 
-        /** Pixel height of player image. */
-        private int mPlayerHeight;
-        /** Pixel width of player image. */
-        private int mPlayerWidth;
-
-
         /** The state of the game. One of READY, RUNNING, PAUSE, LOSE, or WIN */
         private int mMode;
 
-        /** Velocity dx. */
-        private double mDX;
-        /** Velocity dy. */
-        private double mDY;
-
-        /** X of lander center. */
-        private double mX;
-        /** Y of lander center. */
-        private double mY;
-
-        /** Is the engine burning? */
-        private int mJumping;
+        private Player mPlayer;
+        private List<Obstacle> mObstacles = new ArrayList<Obstacle>();
 
         /** Used to figure out elapsed time between frames */
         private long mLastTime;
@@ -113,18 +87,14 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
             // we don't need to transform it and it's faster to draw this way
             mBackgroundImage = BitmapFactory.decodeResource(res,
                     R.drawable.background);
+            mPlayer = new Player();
         }
 
         public void doStart() {
             synchronized (mSurfaceHolder) {
 
-                // pick a convenient initial location for the lander sprite
-                int offset = mCanvasWidth/8;
-                mX = offset;
-                mY = (mCanvasHeight - mPlayerHeight) / 2;
-
-                mDY = 0;
-                mDX = 0;
+                mPlayer.reset();
+                mObstacles.add(new Obstacle());
 
                 mLastTime = System.currentTimeMillis() + 100;
                 setState(STATE_RUNNING);
@@ -150,11 +120,7 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
         public synchronized void restoreState(Bundle savedState) {
             synchronized (mSurfaceHolder) {
                 setState(STATE_PAUSE);
-
-                mX = savedState.getDouble(KEY_X);
-                mY = savedState.getDouble(KEY_Y);
-                mDX = savedState.getDouble(KEY_DX);
-                mDY = savedState.getDouble(KEY_DY);
+                mPlayer.restoreState(savedState);
             }
         }
         
@@ -193,10 +159,7 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
         public Bundle saveState(Bundle map) {
             synchronized (mSurfaceHolder) {
                 if (map != null) {
-                    map.putDouble(KEY_X, Double.valueOf(mX));
-                    map.putDouble(KEY_Y, Double.valueOf(mY));
-                    map.putDouble(KEY_DX, Double.valueOf(mDX));
-                    map.putDouble(KEY_DY, Double.valueOf(mDY));
+                    mPlayer.saveState(map);
                 }
             }
             return map;
@@ -217,16 +180,6 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
             }
         }
 
-        /**
-         * Sets if the player is jumping. That is, whether upwards, downwards, or not.
-         *
-         * @param jumping one of the STATE_* constants
-         */
-        public void setJumping(int jumping) {
-            synchronized (mSurfaceHolder) {
-                mJumping = jumping;
-            }
-        }
         /**
          * Sets the game mode. That is, whether we are running, paused, in the
          * failure state, in the victory state, etc.
@@ -307,18 +260,15 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
             setState(STATE_RUNNING);
         }
         /**
-         * Handles a key-down event.
+         * Handles a touch event.
          *
-         * @param keyCode the key that was pressed
-         * @param msg the original event object
+         * @param event the event object
          * @return true
          */
-        boolean doKeyDown(int keyCode, KeyEvent msg) {
+        boolean onTouch(MotionEvent event) {
             synchronized (mSurfaceHolder) {
                 boolean okStart = false;
-                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) okStart = true;
-                if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) okStart = true;
-                if (keyCode == KeyEvent.KEYCODE_S) okStart = true;
+                if (event.getAction() == MotionEvent.ACTION_DOWN) okStart = true;
                 if (okStart && mMode == STATE_READY) {
                     // ready-to-start -> start
                     doStart();
@@ -338,11 +288,8 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
         public boolean onSwipeTop() {
             boolean handled = false;
             synchronized (mSurfaceHolder) {
-                if (mMode == STATE_RUNNING && mJumping == JUMPING_NONE) {
-                    mDY += JUMP_SPEED;
-                    setJumping(JUMPING_UP);
-                    handled = true;
-                }
+                if (mMode == STATE_RUNNING)
+                    handled = mPlayer.setJumping(Player.JUMPING_UP);
             }
             return handled;
         }
@@ -354,89 +301,11 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
         public boolean onSwipeBottom() {
             boolean handled = false;
             synchronized (mSurfaceHolder) {
-                if (mMode == STATE_RUNNING && mJumping == JUMPING_NONE) {
-                    mDY -= JUMP_SPEED;
-                    setJumping(JUMPING_DOWN);
-                    handled = true;
-                }
+                if (mMode == STATE_RUNNING)
+                    handled = mPlayer.setJumping(Player.JUMPING_DOWN);
             }
             return handled;
         }
-//
-//        /**
-//         * Handles a key-down event.
-//         *
-//         * @param keyCode the key that was pressed
-//         * @param msg the original event object
-//         * @return true
-//         */
-//        boolean doKeyDown(int keyCode, KeyEvent msg) {
-//            synchronized (mSurfaceHolder) {
-//                boolean okStart = false;
-//                // TODO: 12/27/2016 replace keyevents
-//                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) okStart = true;
-//                if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) okStart = true;
-//                if (keyCode == KeyEvent.KEYCODE_S) okStart = true;
-//                if (okStart
-//                        && (mMode == STATE_READY || mMode == STATE_LOSE )) {
-//                    // ready-to-start -> start
-//                    doStart();
-//                    return true;
-//                } else if (mMode == STATE_PAUSE && okStart) {
-//                    // paused -> running
-//                    unpause();
-//                    return true;
-//                } else if (mMode == STATE_RUNNING) {
-//                    // center/space -> fire
-//                    if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
-//                            || keyCode == KeyEvent.KEYCODE_SPACE) {
-//                        setFiring(true);
-//                        return true;
-//                        // left/q -> left
-//                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT
-//                            || keyCode == KeyEvent.KEYCODE_Q) {
-//                        mRotating = -1;
-//                        return true;
-//                        // right/w -> right
-//                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
-//                            || keyCode == KeyEvent.KEYCODE_W) {
-//                        mRotating = 1;
-//                        return true;
-//                        // up -> pause
-//                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-//                        pause();
-//                        return true;
-//                    }
-//                }
-//                return false;
-//            }
-//        }
-//        /**
-//         * Handles a key-up event.
-//         *
-//         * @param keyCode the key that was pressed
-//         * @param msg the original event object
-//         * @return true if the key was handled and consumed, or else false
-//         */
-//        boolean doKeyUp(int keyCode, KeyEvent msg) {
-//            boolean handled = false;
-//            synchronized (mSurfaceHolder) {
-//                if (mMode == STATE_RUNNING) {
-//                    if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
-//                            || keyCode == KeyEvent.KEYCODE_SPACE) {
-//                        setFiring(false);
-//                        handled = true;
-//                    } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT
-//                            || keyCode == KeyEvent.KEYCODE_Q
-//                            || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
-//                            || keyCode == KeyEvent.KEYCODE_W) {
-//                        mRotating = 0;
-//                        handled = true;
-//                    }
-//                }
-//            }
-//            return handled;
-//        }
         /**
          * Draws the ship, fuel/speed bars, and background to the provided
          * Canvas.
@@ -445,18 +314,10 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
             // Draw the background image. Operations on the Canvas accumulate
             // so this is like clearing the screen.
             canvas.drawBitmap(mBackgroundImage, 0, 0, null);
-
-            // TODO: 12/29/2016 temp
-            mPlayerHeight = 20;
-            mPlayerWidth = 20;
-            int offset = mCanvasWidth/8;
-            int yMid = mCanvasHeight/2 - ((int) mY + mPlayerHeight / 2);
-            int xLeft = (int) mX + offset - mPlayerWidth / 2;
-
-            Paint paint = new Paint();
-            paint.setStyle(Paint.Style.FILL);
-            int radius = 20;
-            canvas.drawCircle(xLeft, yMid , radius, paint);
+            mPlayer.doDraw(canvas,mCanvasWidth,mCanvasHeight);
+            for(Obstacle obstacle:mObstacles){
+                obstacle.doDraw(canvas,mCanvasWidth,mCanvasHeight);
+            }
         }
         /**
          * Figures the lander state (x, y, fuel, ...) based on the passage of
@@ -470,73 +331,11 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
             // by 100ms or whatever.
             if (mLastTime > now) return;
             double elapsed = (now - mLastTime) / 1000.0;
-
-            // Base accelerations -- 0 for x, gravity for y
-            double ddx = 0.0;
-            double ddy = 0.0;
-            if (mY > 0)
-                ddy = -PHYS_DOWN_ACCEL_SEC * elapsed;
-            else if (mY < 0)
-                ddy = PHYS_DOWN_ACCEL_SEC * elapsed;
-//            if (mEngineFiring) {
-//                // taking 0 as up, 90 as to the right
-//                // cos(deg) is ddy component, sin(deg) is ddx component
-//                double elapsedFiring = elapsed;
-//                double fuelUsed = elapsedFiring * PHYS_FUEL_SEC;
-//                // tricky case where we run out of fuel partway through the
-//                // elapsed
-//                if (fuelUsed > mFuel) {
-//                    elapsedFiring = mFuel / fuelUsed * elapsed;
-//                    fuelUsed = mFuel;
-//                    // Oddball case where we adjust the "control" from here
-//                    mEngineFiring = false;
-//                }
-//                mFuel -= fuelUsed;
-//                // have this much acceleration from the engine
-//                double accel = PHYS_FIRE_ACCEL_SEC * elapsedFiring;
-//                double radians = 2 * Math.PI * mHeading / 360;
-//                ddx = Math.sin(radians) * accel;
-//                ddy += Math.cos(radians) * accel;
-//            }
-            double dxOld = mDX;
-            double dyOld = mDY;
-            // figure speeds for the end of the period
-            mDX += ddx;
-            mDY += ddy;
-            // figure position based on average speed during the period
-            mX += elapsed * (mDX + dxOld) / 2;
-            mY += elapsed * (mDY + dyOld) / 2;
+            mPlayer.updatePhysics(elapsed);
+            for(Obstacle obstacle:mObstacles){
+                obstacle.updatePhysics(elapsed);
+            }
             mLastTime = now;
-//            if (mY <= yLowerBound) {
-//                mY = yLowerBound;
-//                int result = STATE_LOSE;
-//                CharSequence message = "";
-//                Resources res = mContext.getResources();
-//                double speed = Math.hypot(mDX, mDY);
-//                boolean onGoal = (mGoalX <= mX - mLanderWidth / 2 && mX
-//                        + mLanderWidth / 2 <= mGoalX + mGoalWidth);
-//                // "Hyperspace" win -- upside down, going fast,
-//                // puts you back at the top.
-//                if (onGoal && Math.abs(mHeading - 180) < mGoalAngle
-//                        && speed > PHYS_SPEED_HYPERSPACE) {
-//                    result = STATE_WIN;
-//                    mWinsInARow++;
-//                    doStart();
-//                    return;
-//                    // Oddball case: this case does a return, all other cases
-//                    // fall through to setMode() below.
-//                } else if (!onGoal) {
-//                    message = res.getText(R.string.message_off_pad);
-//                } else if (!(mHeading <= mGoalAngle || mHeading >= 360 - mGoalAngle)) {
-//                    message = res.getText(R.string.message_bad_angle);
-//                } else if (speed > mGoalSpeed) {
-//                    message = res.getText(R.string.message_too_fast);
-//                } else {
-//                    result = STATE_WIN;
-//                    mWinsInARow++;
-//                }
-//                setState(result, message);
-//            }
         }
     }
 
@@ -584,14 +383,12 @@ public class GameSurface extends SurfaceView implements SurfaceHolder.Callback {
     public boolean onSwipeBottom() {
         return thread.onSwipeBottom();
     }
-//    /**
-//     * Standard override for key-up. We actually care about these, so we can
-//     * turn off the engine or stop rotating.
-//     */
-//    @Override
-//    public boolean onKeyUp(int keyCode, KeyEvent msg) {
-//        return thread.doKeyUp(keyCode, msg);
-//    }
+    /**
+     * Get touch event.
+     */
+    public void onTouch(MotionEvent event) {
+        thread.onTouch(event);
+    }
     /**
      * Standard window-focus override. Notice focus lost so we can pause on
      * focus lost. e.g. user switches to take a call.

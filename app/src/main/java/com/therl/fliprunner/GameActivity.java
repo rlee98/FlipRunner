@@ -4,6 +4,7 @@ import android.content.pm.ActivityInfo;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 
 public class GameActivity extends AppCompatActivity {
@@ -29,7 +30,11 @@ public class GameActivity extends AppCompatActivity {
             public void onSwipeBottom() {
                 mGameSurface.onSwipeBottom();
             }
-
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                mGameSurface.onTouch(event);
+                return super.onTouch(v,event);
+            }
         });
         mGameThread = mGameSurface.getThread();
         if (savedInstanceState == null) {
